@@ -36,6 +36,7 @@ import android.text.Editable;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.text.method.DigitsKeyListener;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.KeyEvent;
 import android.view.Menu;
@@ -66,6 +67,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Objects;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import com.google.android.material.tabs.TabLayout;
 
 import javax.microedition.lcdui.Alert;
 import javax.microedition.lcdui.Canvas;
@@ -102,6 +109,11 @@ public class MicroActivity extends AppCompatActivity {
 	private InputMethodManager inputMethodManager;
 	private int menuKey;
 	private String appPath;
+	/** Multi-tab support: tracks every running MIDlet instance opened from this activity. */
+	private TabManager tabManager;
+	private boolean suppressTabEvents;
+	private static final String MULTITAB_PREFS = "multitab_state";
+	private static final String MULTITAB_KEY = "tabs";
 
 	public ActivityMicroBinding binding;
 
@@ -184,11 +196,322 @@ public class MicroActivity extends AppCompatActivity {
 		menuKey = microLoader.getMenuKeyCode();
 		inputMethodManager = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
 
+		tabManager = new TabManager();
+		MidletTab initialTab = tabManager.createTab(0, appName, appPath);
+		if (initialTab != null) {
+			initialTab.dataDir = AppClassLoader.getDataDir();
+			initialTab.loader = microLoader;
+			tabManager.setActiveTab(0);
+		}
+		setupTabBar();
+
 		try {
 			loadMIDlet();
 		} catch (Exception e) {
 			e.printStackTrace();
 			showErrorDialog(e.toString());
+		}
+		restoreRunningTabs();
+		updateTabBar();
+	}
+
+	/** Wires the TabLayout added to activity_micro.xml: selecting a tab switches to it,
+	 *  selecting the trailing "+" tab opens a new one. */
+	private void setupTabBar() {
+		TabLayout tabLayout = binding.tabLayout;
+		tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
+			@Override
+			public void onTabSelected(@NonNull TabLayout.Tab tab) {
+				if (suppressTabEvents) {
+					return;
+				}
+				Object tag = tab.getTag();
+				if ("ADD_NEW".equals(tag)) {
+					addNewTab();
+				} else if (tag instanceof Integer) {
+					switchToTab((Integer) tag);
+				}
+			}
+
+			@Override
+			public void onTabUnselected(@NonNull TabLayout.Tab tab) {
+			}
+
+			@Override
+			public void onTabReselected(@NonNull TabLayout.Tab tab) {
+			}
+		});
+	}
+
+	/** Rebuilds the TabLayout to reflect the current TabManager state. Only shown once
+	 *  more than one tab exists, so single-instance users see no UI change at all. */
+	void updateTabBar() {
+		if (binding == null || tabManager == null) {
+			return;
+		}
+		TabLayout tabLayout = binding.tabLayout;
+		suppressTabEvents = true;
+		tabLayout.removeAllTabs();
+		java.util.List<MidletTab> tabs = tabManager.getTabs();
+		if (tabs.size() > 1) {
+			tabLayout.setVisibility(View.VISIBLE);
+			for (MidletTab tab : tabs) {
+				TabLayout.Tab uiTab = tabLayout.newTab();
+				uiTab.setText(tab.appName != null ? tab.appName : ("#" + tab.id));
+				uiTab.setTag(tab.id);
+				tabLayout.addTab(uiTab, tab.id == tabManager.getActiveTabId());
+			}
+			TabLayout.Tab addTab = tabLayout.newTab();
+			addTab.setText("+");
+			addTab.setTag("ADD_NEW");
+			tabLayout.addTab(addTab);
+		} else {
+			tabLayout.setVisibility(View.GONE);
+		}
+		suppressTabEvents = false;
+	}
+
+	/**
+	 * Opens a new tab that runs another, independent instance of the MIDlet already loaded
+	 * in this activity (same JAR/appPath), each with its own RMS data directory and its own
+	 * optional network proxy. Enforces {@link TabManager#MAX_TABS}.
+	 */
+	public void addNewTab() {
+		if (tabManager.size() >= TabManager.MAX_TABS) {
+			Toast.makeText(this, "Đã đạt giới hạn " + TabManager.MAX_TABS + " tab", Toast.LENGTH_SHORT).show();
+			updateTabBar();
+			return;
+		}
+		MidletTab tab = tabManager.createTab(appName, appPath);
+		if (tab == null) {
+			Toast.makeText(this, "Không thể tạo tab mới", Toast.LENGTH_SHORT).show();
+			return;
+		}
+		File dir = new File(getFilesDir(), "tabs/" + tab.id);
+		if (!dir.exists()) {
+			dir.mkdirs();
+		}
+		tab.dataDir = dir.getAbsolutePath();
+		tab.proxyConfig = ProxyConfig.load(dir);
+		try {
+			MicroLoader loader = new MicroLoader(this, appPath);
+			if (!loader.init()) {
+				throw new IOException("MicroLoader.init() failed for new tab");
+			}
+			tab.loader = loader;
+			LinkedHashMap<String, String> midlets = loader.loadMIDletList();
+			if (midlets.isEmpty()) {
+				throw new IOException("No MIDlets found for new tab");
+			}
+			String mainClass = midlets.keySet().iterator().next();
+			tab.mainClass = mainClass;
+			MidletThread.create(loader, mainClass, tab.id, tab.dataDir, tab.proxyConfig);
+		} catch (Exception e) {
+			Log.e(getClass().getName(), "Failed to start new tab", e);
+			Toast.makeText(this, "Lỗi tạo tab: " + e, Toast.LENGTH_SHORT).show();
+			tabManager.removeTab(tab.id);
+			updateTabBar();
+			return;
+		}
+		switchToTab(tab.id);
+		updateTabBar();
+		saveRunningTabs();
+	}
+
+	/** Switches the visible Displayable to the given tab, remembering the outgoing tab's UI state. */
+	public void switchToTab(int id) {
+		MidletTab outgoing = tabManager.getActiveTab();
+		if (outgoing != null) {
+			outgoing.currentDisplayable = current;
+		}
+		tabManager.setActiveTab(id);
+		MidletTab tab = tabManager.getTab(id);
+		if (tab != null) {
+			setCurrent(tab.currentDisplayable);
+			MidletThread.resumeApp(id);
+		}
+		updateTabBar();
+	}
+
+	/** Called by MidletThread when a tab's MIDlet finishes and at least one other tab is still running. */
+	void onTabDestroyed(int tabId) {
+		if (tabManager == null) {
+			return;
+		}
+		tabManager.removeTab(tabId);
+		MidletTab next = tabManager.getNextTab(tabId);
+		updateTabBar();
+		if (next != null) {
+			switchToTab(next.id);
+		}
+		saveRunningTabs();
+	}
+
+	/** Restarts the MIDlet running inside an existing tab (e.g. after it crashed or on user request). */
+	public void onTabReset(int id) {
+		if (MidletThread.getInstance(id) != null) {
+			// Already running; nothing to do.
+			return;
+		}
+		MidletTab tab = tabManager.getTab(id);
+		if (tab == null) {
+			return;
+		}
+		if (id == tabManager.getActiveTabId()) {
+			binding.displayableContainer.removeAllViews();
+			current = null;
+		}
+		File dir = new File(tab.dataDir);
+		tab.proxyConfig = ProxyConfig.load(dir);
+		if (tab.proxyConfig == null) {
+			tab.proxyConfig = new ProxyConfig();
+		}
+		MicroLoader loader = tab.loader != null ? tab.loader : new MicroLoader(this, tab.appPath);
+		loader.init();
+		tab.loader = loader;
+		MidletThread.create(loader, tab.mainClass, tab.id, tab.dataDir, tab.proxyConfig);
+		MidletThread.resumeApp(id);
+	}
+
+	/** Shows a dialog to view/edit the network proxy used by a specific tab's socket connections. */
+	public void showTabProxyDialog(int id) {
+		MidletTab tab = tabManager.getTab(id);
+		if (tab == null) {
+			return;
+		}
+		ProxyConfig cfg = tab.proxyConfig != null ? tab.proxyConfig : new ProxyConfig();
+
+		LinearLayout layout = new LinearLayout(this);
+		layout.setOrientation(LinearLayout.VERTICAL);
+		int pad = (int) (16 * getResources().getDisplayMetrics().density);
+		layout.setPadding(pad, pad, pad, pad);
+
+		AppCompatCheckBox enabledBox = new AppCompatCheckBox(this);
+		enabledBox.setText("Bật proxy cho tab này");
+		enabledBox.setChecked(cfg.enabled);
+
+		EditText hostField = new EditText(this);
+		hostField.setHint("Host");
+		hostField.setText(cfg.host);
+
+		EditText portField = new EditText(this);
+		portField.setHint("Port");
+		portField.setInputType(InputType.TYPE_CLASS_NUMBER);
+		portField.setKeyListener(DigitsKeyListener.getInstance(false, false));
+		if (cfg.port > 0) {
+			portField.setText(String.valueOf(cfg.port));
+		}
+
+		EditText userField = new EditText(this);
+		userField.setHint("User (tuỳ chọn)");
+		userField.setText(cfg.user);
+
+		EditText passField = new EditText(this);
+		passField.setHint("Password (tuỳ chọn)");
+		passField.setText(cfg.pass);
+
+		layout.addView(enabledBox);
+		layout.addView(hostField);
+		layout.addView(portField);
+		layout.addView(userField);
+		layout.addView(passField);
+
+		new AlertDialog.Builder(this)
+				.setTitle("Proxy cho: " + tab.appName)
+				.setView(layout)
+				.setPositiveButton(android.R.string.ok, (d, w) -> {
+					ProxyConfig updated = new ProxyConfig(
+							enabledBox.isChecked(),
+							"HTTP",
+							hostField.getText().toString().trim(),
+							parseIntOrZero(portField.getText().toString()),
+							userField.getText().toString().trim(),
+							passField.getText().toString()
+					);
+					tab.proxyConfig = updated;
+					if (tab.dataDir != null) {
+						updated.save(new File(tab.dataDir));
+					}
+					Toast.makeText(this, "Đã lưu proxy cho tab " + tab.appName, Toast.LENGTH_SHORT).show();
+				})
+				.setNegativeButton(android.R.string.cancel, null)
+				.show();
+	}
+
+	private static int parseIntOrZero(String s) {
+		try {
+			return Integer.parseInt(s.trim());
+		} catch (Exception e) {
+			return 0;
+		}
+	}
+
+	/** Persists the list of currently open tabs so they can be restored after the app is fully relaunched. */
+	private void saveRunningTabs() {
+		if (tabManager == null) {
+			return;
+		}
+		try {
+			JSONArray arr = new JSONArray();
+			for (MidletTab tab : tabManager.getTabs()) {
+				JSONObject o = new JSONObject();
+				o.put("id", tab.id);
+				o.put("appName", tab.appName);
+				o.put("appPath", tab.appPath);
+				o.put("mainClass", tab.mainClass);
+				o.put("dataDir", tab.dataDir);
+				arr.put(o);
+			}
+			getSharedPreferences(MULTITAB_PREFS, MODE_PRIVATE).edit()
+					.putString(MULTITAB_KEY, arr.toString())
+					.apply();
+		} catch (JSONException e) {
+			Log.w(getClass().getName(), "Failed to save running tabs", e);
+		}
+	}
+
+	/** Restores extra tabs (beyond tab 0, which loadMIDlet() already started) saved from a previous session
+	 *  of this same app (matched by appPath), if any were left running when the app was last closed. */
+	private void restoreRunningTabs() {
+		if (tabManager == null) {
+			return;
+		}
+		String json = getSharedPreferences(MULTITAB_PREFS, MODE_PRIVATE).getString(MULTITAB_KEY, null);
+		if (json == null) {
+			return;
+		}
+		try {
+			JSONArray arr = new JSONArray(json);
+			for (int i = 0; i < arr.length(); i++) {
+				JSONObject o = arr.getJSONObject(i);
+				int id = o.getInt("id");
+				if (id == 0 || !Objects.equals(o.optString("appPath"), appPath)) {
+					continue; // tab 0 is already live; only restore tabs matching this same app
+				}
+				String dataDir = o.optString("dataDir", null);
+				String mainClass = o.optString("mainClass", null);
+				if (dataDir == null || mainClass == null) {
+					continue;
+				}
+				MidletTab tab = tabManager.createTab(id, o.optString("appName", appName), appPath);
+				if (tab == null) {
+					break;
+				}
+				tab.mainClass = mainClass;
+				tab.dataDir = dataDir;
+				tab.proxyConfig = ProxyConfig.load(new File(dataDir));
+				try {
+					MicroLoader loader = new MicroLoader(this, appPath);
+					loader.init();
+					tab.loader = loader;
+					MidletThread.create(loader, mainClass, id, dataDir, tab.proxyConfig);
+				} catch (Exception e) {
+					Log.w(getClass().getName(), "Failed to restore tab " + id, e);
+					tabManager.removeTab(id);
+				}
+			}
+		} catch (JSONException e) {
+			Log.w(getClass().getName(), "Failed to parse saved tabs", e);
 		}
 	}
 
@@ -457,6 +780,16 @@ public class MicroActivity extends AppCompatActivity {
 		int id = item.getItemId();
 		if (id == R.id.action_exit_midlet) {
 			showExitConfirmation();
+		} else if (id == R.id.action_new_tab) {
+			addNewTab();
+		} else if (id == R.id.action_close_tab) {
+			if (tabManager != null) {
+				MidletThread.destroyApp(tabManager.getActiveTabId());
+			}
+		} else if (id == R.id.action_tab_proxy) {
+			if (tabManager != null) {
+				showTabProxyDialog(tabManager.getActiveTabId());
+			}
 		} else if (id == R.id.action_save_log) {
 			saveLog();
 		} else if (id == R.id.action_lock_orientation) {
