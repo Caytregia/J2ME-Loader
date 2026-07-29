@@ -1,0 +1,49 @@
+name: Android Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;25.2.9519653"
+
+      - name: Create keystore properties
+        run: |
+          echo "keyAlias=dummy" > keystore.properties
+          echo "keyPassword=dummy" >> keystore.properties
+          echo "storeFile=dummy.keystore" >> keystore.properties
+          echo "storePassword=dummy" >> keystore.properties
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Build APK
+        run: |
+          ./gradlew assembleOpenDebug --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: J2ME-Loader-debug-apk
+          path: app/build/outputs/apk/**/*.apk
