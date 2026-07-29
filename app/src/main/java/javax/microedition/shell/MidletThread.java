@@ -13,6 +13,12 @@
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
+ *
+ *  --- Multi-tab support patch ---
+ *  Instead of a single static `instance`, running MIDlets are now tracked in a
+ *  Map<Integer, MidletThread> keyed by tab id, each running inside its own
+ *  ThreadGroup for basic isolation. Destroying one tab's MIDlet no longer kills
+ *  the whole process unless it was the last remaining tab.
  */
 
 package javax.microedition.shell;
@@ -23,6 +29,10 @@ import android.os.Message;
 import android.os.Process;
 import android.util.Log;
 
+import java.io.File;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 import javax.microedition.lcdui.Canvas;
 import javax.microedition.lcdui.Displayable;
 import javax.microedition.midlet.MIDlet;
@@ -30,6 +40,7 @@ import javax.microedition.midlet.MIDletStateChangeException;
 import javax.microedition.util.ContextHolder;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import ru.playsoftware.j2meloader.config.Config;
 
@@ -47,68 +58,160 @@ public class MidletThread extends HandlerThread implements Handler.Callback {
 	private static final int PAUSED = 2;
 	private static final int DESTROYED = 3;
 	public static String[] startAfterDestroy;
-	private static MidletThread instance;
+
+	/** All currently running MIDlet instances, keyed by tab id. */
+	private static final Map<Integer, MidletThread> instances = new ConcurrentHashMap<>();
+	/** Thread groups per tab, kept alive for the tab's lifetime so per-tab threads can be enumerated/interrupted. */
+	private static final Map<Integer, ThreadGroup> tabThreadGroups = new ConcurrentHashMap<>();
+
 	private final MicroLoader microLoader;
 	private final String mainClass;
+	private final int tabId;
+	private final String dataDir;
+	private final ProxyConfig proxyConfig;
 	private MIDlet midlet;
 	private final Handler handler;
 	private int state;
 
-	private MidletThread(MicroLoader microLoader, String mainClass) {
-		super("MidletMain");
+	private MidletThread(MicroLoader microLoader, String mainClass, int tabId, String dataDir, ProxyConfig proxyConfig, ThreadGroup group) {
+		super(group, "MidletMain-" + tabId);
 		this.microLoader = microLoader;
 		this.mainClass = mainClass;
+		this.tabId = tabId;
+		this.dataDir = dataDir;
+		this.proxyConfig = proxyConfig;
 		start();
 		handler = new Handler(getLooper(), this);
 		handler.obtainMessage(INIT).sendToTarget();
 	}
 
+	private static synchronized ThreadGroup createTabThreadGroup(int tabId) {
+		ThreadGroup group = new ThreadGroup("MidletTab-" + tabId);
+		tabThreadGroups.put(tabId, group);
+		return group;
+	}
+
+	/** Full form: explicitly launch (or relaunch) a MIDlet inside a given tab, with its own data dir and proxy. */
+	static void create(MicroLoader microLoader, String mainClass, int tabId, String dataDir, ProxyConfig proxyConfig) {
+		MidletThread existing = instances.get(tabId);
+		if (existing != null) {
+			Log.w(TAG, "create() called for tab " + tabId + " while an instance is already running; ignoring");
+			return;
+		}
+		ThreadGroup group = createTabThreadGroup(tabId);
+		MidletThread thread = new MidletThread(microLoader, mainClass, tabId, dataDir, proxyConfig, group);
+		instances.put(tabId, thread);
+	}
+
+	/**
+	 * Legacy convenience form kept for source compatibility with single-instance callers:
+	 * runs against the currently active tab (or tab 0 if multi-tab was never engaged),
+	 * using the app's default data dir and no proxy.
+	 */
 	static void create(MicroLoader microLoader, String mainClass) {
-		instance = new MidletThread(microLoader, mainClass);
+		int tabId = ContextHolder.getActiveTabId();
+		if (tabId < 0) {
+			tabId = 0;
+			ContextHolder.setActiveTabId(0);
+		}
+		create(microLoader, mainClass, tabId, AppClassLoader.getDataDir(), null);
+	}
+
+	@Nullable
+	static MidletThread getInstance(int tabId) {
+		return instances.get(tabId);
+	}
+
+	/** Returns the MidletThread whose own HandlerThread the caller is currently running on, if any. */
+	@Nullable
+	private static MidletThread resolveCurrent() {
+		Thread current = Thread.currentThread();
+		for (MidletThread mt : instances.values()) {
+			if (mt == current) {
+				return mt;
+			}
+		}
+		// Fall back to the active tab (covers calls made from the UI thread).
+		return instances.get(ContextHolder.getActiveTabId());
 	}
 
 	public static void notifyDestroyed() {
-		Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
-		if (instance != null) {
-			instance.state = DESTROYED;
+		MidletThread mt = resolveCurrent();
+		if (mt != null) {
+			notifyDestroyed(mt.tabId);
 		}
+	}
+
+	public static void notifyDestroyed(int tabId) {
+		Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
+		MidletThread mt = instances.remove(tabId);
+		if (mt != null) {
+			mt.state = DESTROYED;
+		}
+		tabThreadGroups.remove(tabId);
 		MicroActivity activity = ContextHolder.getActivity();
+		boolean lastTab = instances.isEmpty();
 		if (activity != null) {
-			activity.finish();
+			if (lastTab) {
+				activity.finish();
+			} else {
+				activity.onTabDestroyed(tabId);
+			}
 		}
 		if (startAfterDestroy != null) {
 			Config.startApp(ContextHolder.getActivity(), startAfterDestroy[0], startAfterDestroy[1], false, startAfterDestroy[2]);
+			startAfterDestroy = null;
 		}
-		Process.killProcess(Process.myPid());
+		if (lastTab) {
+			Process.killProcess(Process.myPid());
+		}
 	}
 
 	public static void notifyPaused() {
-		instance.state = PAUSED;
+		MidletThread mt = resolveCurrent();
+		if (mt != null) {
+			mt.state = PAUSED;
+		}
 	}
 
 	static void pauseApp() {
-		if (instance != null)
-			instance.handler.obtainMessage(PAUSE).sendToTarget();
+		MidletThread mt = instances.get(ContextHolder.getActiveTabId());
+		if (mt != null) {
+			mt.handler.obtainMessage(PAUSE).sendToTarget();
+		}
 	}
 
 	public static void resumeApp() {
+		resumeApp(ContextHolder.getActiveTabId());
+	}
+
+	public static void resumeApp(int tabId) {
 		MicroActivity activity = ContextHolder.getActivity();
-		if (instance != null && activity != null && activity.isVisible())
-			instance.handler.obtainMessage(START).sendToTarget();
+		MidletThread mt = instances.get(tabId);
+		if (mt != null && activity != null && activity.isVisible()) {
+			mt.handler.obtainMessage(START).sendToTarget();
+		}
 	}
 
 	static void destroyApp() {
+		destroyApp(ContextHolder.getActiveTabId());
+	}
+
+	static void destroyApp(int tabId) {
 		Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
-		new Thread(() -> {
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-			Process.killProcess(Process.myPid());
-		}, "ForceDestroyTimer").start();
+		boolean lastTab = instances.size() <= 1;
+		if (lastTab) {
+			new Thread(() -> {
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+				Process.killProcess(Process.myPid());
+			}, "ForceDestroyTimer").start();
+		}
 		MicroActivity activity = ContextHolder.getActivity();
-		if (activity != null) {
+		if (activity != null && tabId == ContextHolder.getActiveTabId()) {
 			Displayable current = activity.getCurrent();
 			if (current instanceof Canvas) {
 				Canvas canvas = (Canvas) current;
@@ -116,9 +219,22 @@ public class MidletThread extends HandlerThread implements Handler.Callback {
 				canvas.postKeyReleased(Canvas.KEY_END);
 			}
 		}
-		if (instance != null) {
-			instance.handler.obtainMessage(DESTROY).sendToTarget();
+		MidletThread mt = instances.get(tabId);
+		if (mt != null) {
+			mt.handler.obtainMessage(DESTROY).sendToTarget();
 		}
+	}
+
+	public String getDataDir() {
+		return dataDir;
+	}
+
+	public ProxyConfig getProxyConfig() {
+		return proxyConfig;
+	}
+
+	public int getTabId() {
+		return tabId;
 	}
 
 	@Override
@@ -167,7 +283,7 @@ public class MidletThread extends HandlerThread implements Handler.Callback {
 				break;
 			case DESTROY:
 				if (state == DESTROYED) {
-					notifyDestroyed();
+					notifyDestroyed(tabId);
 					break;
 				}
 				state = DESTROYED;
@@ -178,7 +294,7 @@ public class MidletThread extends HandlerThread implements Handler.Callback {
 				} catch (Throwable t) {
 					Log.e(TAG, "Filed destroyApp:", t);
 				}
-				notifyDestroyed();
+				notifyDestroyed(tabId);
 				break;
 		}
 		return true;
