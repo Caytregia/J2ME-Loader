@@ -57,6 +57,18 @@ public class ContextHolder {
 	private static Context appContext;
 	private static final ArrayList<ActivityResultListener> resultListeners = new ArrayList<>();
 	private static boolean vibrationEnabled;
+	/** ID of the tab (running MIDlet instance) currently in the foreground.
+	 *  Used by per-tab aware code (proxy selection, data dir, RMS, thread lookup)
+	 *  to know which running instance it should act on. -1 = no tab / single-instance mode. */
+	private static volatile int activeTabId = -1;
+
+	public static int getActiveTabId() {
+		return activeTabId;
+	}
+
+	public static void setActiveTabId(int tabId) {
+		activeTabId = tabId;
+	}
 
 	public static Context getAppContext() {
 		return appContext;
