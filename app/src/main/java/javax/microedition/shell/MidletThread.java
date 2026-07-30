@@ -73,8 +73,12 @@ public class MidletThread extends HandlerThread implements Handler.Callback {
 	private final Handler handler;
 	private int state;
 
-	private MidletThread(MicroLoader microLoader, String mainClass, int tabId, String dataDir, ProxyConfig proxyConfig, ThreadGroup group) {
-		super(group, "MidletMain-" + tabId);
+	private MidletThread(MicroLoader microLoader, String mainClass, int tabId, String dataDir, ProxyConfig proxyConfig) {
+		// Note: HandlerThread only exposes (String) / (String, int priority) constructors,
+		// there is no (ThreadGroup, String) overload, so we can't parent this thread to the
+		// tab's ThreadGroup directly. createTabThreadGroup(tabId) still tracks a ThreadGroup
+		// per tab for bookkeeping/lookup purposes even though it isn't the OS-level parent group.
+		super("MidletMain-" + tabId);
 		this.microLoader = microLoader;
 		this.mainClass = mainClass;
 		this.tabId = tabId;
@@ -98,8 +102,8 @@ public class MidletThread extends HandlerThread implements Handler.Callback {
 			Log.w(TAG, "create() called for tab " + tabId + " while an instance is already running; ignoring");
 			return;
 		}
-		ThreadGroup group = createTabThreadGroup(tabId);
-		MidletThread thread = new MidletThread(microLoader, mainClass, tabId, dataDir, proxyConfig, group);
+		createTabThreadGroup(tabId);
+		MidletThread thread = new MidletThread(microLoader, mainClass, tabId, dataDir, proxyConfig);
 		instances.put(tabId, thread);
 	}
 
