@@ -23,6 +23,16 @@
             app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
             tools:title="MIDlet Title" />
 
+        <!-- Multi-tab support patch: bar of running MIDlet instances + "+" to add another.
+             Hidden automatically (GONE) unless more than one tab is open. -->
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/tab_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            app:tabMode="scrollable"
+            app:tabGravity="start" />
+
         <FrameLayout
             android:id="@+id/displayable_container"
             android:layout_width="match_parent"
