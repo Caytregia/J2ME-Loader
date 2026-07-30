@@ -3,6 +3,15 @@
         android:id="@+id/action_exit_midlet"
         android:title="@string/exit" />
     <item
+        android:id="@+id/action_new_tab"
+        android:title="Mở tab mới" />
+    <item
+        android:id="@+id/action_close_tab"
+        android:title="Đóng tab này" />
+    <item
+        android:id="@+id/action_tab_proxy"
+        android:title="Proxy cho tab này" />
+    <item
         android:id="@+id/action_save_log"
         android:title="@string/save_log" />
     <item
