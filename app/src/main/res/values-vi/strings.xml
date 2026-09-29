@@ -122,6 +122,7 @@
     <string name="pref_input_devices_title">Thiết bị đầu vào</string>
     <string name="pref_graphics_mode_title">Chế độ đồ họa:</string>
     <string name="PREF_FONT_ANTI_ALIASING">Khử răng cưa</string>
+    <string name="PREF_FONT_BITMAP">Phông bitmap</string>
     <string name="pref_screen_gravity">Trọng lực màn hình</string>
     <string name="pref_screen_gravity_bottom">Đáy</string>
     <string name="pref_screen_gravity_center">Trung tâm</string>
