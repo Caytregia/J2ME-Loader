@@ -60,6 +60,7 @@ public class Font {
 	private static final float[] sizes = {22, 18, 26};
 
 	private static boolean antiAlias;
+	private static boolean bitmapEnabled;
 
 	final Paint paint = new Paint();
 	final float ascent;
@@ -68,12 +69,14 @@ public class Font {
 	private final int face;
 	private final int style;
 	private final int size;
+	final boolean bitmap;
 
 	@SuppressLint("WrongConstant")
 	public Font(int face, int style, int size, float height) {
 		this.face = face;
 		this.style = style;
 		this.size = size;
+		this.bitmap = bitmapEnabled;
 
 		Typeface family;
 		switch (face) {
@@ -99,6 +102,13 @@ public class Font {
 		paint.setTextSize(height * height / paint.getFontSpacing());
 
 		Paint.FontMetrics fm = new Paint.FontMetrics();
+		if (bitmap) {
+			// metrics of the bitmap glyph row; the system paint is only a fallback
+			this.height = BitmapFont.CELL_H;
+			this.ascent = -BitmapFont.ASCENT;
+			this.descent = BitmapFont.DESCENT;
+			return;
+		}
 		this.height = (int) Math.ceil(paint.getFontMetrics(fm));
 		this.ascent = fm.ascent;
 		this.descent = fm.descent;
@@ -113,7 +123,7 @@ public class Font {
 		Font font = fonts[index];
 
 		if (font == null) {
-			float height = sizes[size / 8];
+			float height = bitmapEnabled ? BitmapFont.CELL_H : sizes[size / 8];
 			font = new Font(face, style, size, height);
 			fonts[index] = font;
 		}
@@ -146,23 +156,48 @@ public class Font {
 	}
 
 	public int getBaselinePosition() {
+		if (bitmap) {
+			return BitmapFont.ASCENT;
+		}
 		return (int) Math.ceil(-paint.ascent());
 	}
 
 	public int charWidth(char c) {
+		if (bitmap && BitmapFont.supports(c)) {
+			return BitmapFont.charWidth(c, isBoldStyle());
+		}
 		return (int) Math.ceil(paint.measureText(new char[]{c}, 0, 1));
 	}
 
 	public int charsWidth(char[] ch, int offset, int length) {
+		if (bitmap) {
+			String str = new String(ch, offset, length);
+			if (BitmapFont.supports(str)) {
+				return BitmapFont.stringWidth(str, isBoldStyle());
+			}
+		}
 		return (int) Math.ceil(paint.measureText(ch, offset, length));
 	}
 
 	public int stringWidth(String text) {
+		if (bitmap && BitmapFont.supports(text)) {
+			return BitmapFont.stringWidth(text, isBoldStyle());
+		}
 		return (int) Math.ceil(paint.measureText(text));
 	}
 
 	public int substringWidth(String str, int offset, int len) {
+		if (bitmap) {
+			String sub = str.substring(offset, offset + len);
+			if (BitmapFont.supports(sub)) {
+				return BitmapFont.stringWidth(sub, isBoldStyle());
+			}
+		}
 		return (int) paint.measureText(str, offset, offset + len);
+	}
+
+	boolean isBoldStyle() {
+		return (style & STYLE_BOLD) != 0;
 	}
 
 	public boolean isBold() {
@@ -179,6 +214,7 @@ public class Font {
 
 	public static void applySettings(ProfileModel params) {
 		antiAlias = params.fontAA;
+		bitmapEnabled = params.fontBitmap && BitmapFont.load();
 
 		float small = params.fontSizeSmall;
 		float medium = params.fontSizeMedium;
