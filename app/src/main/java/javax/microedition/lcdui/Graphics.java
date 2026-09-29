@@ -299,6 +299,9 @@ public class Graphics implements
 	}
 
 	public void drawChars(char[] data, int offset, int length, int x, int y, int anchor) {
+		if (font.bitmap && drawBitmapText(new String(data, offset, length), x, y, anchor)) {
+			return;
+		}
 		Paint paint = font.paint;
 		if ((anchor & Graphics.RIGHT) != 0) {
 			paint.setTextAlign(Paint.Align.RIGHT);
@@ -324,6 +327,9 @@ public class Graphics implements
 	}
 
 	public void drawString(String text, int x, int y, int anchor) {
+		if (font.bitmap && drawBitmapText(text, x, y, anchor)) {
+			return;
+		}
 		Paint paint = font.paint;
 		if ((anchor & Graphics.RIGHT) != 0) {
 			paint.setTextAlign(Paint.Align.RIGHT);
@@ -346,6 +352,42 @@ public class Graphics implements
 
 		paint.setColor(fillPaint.getColor());
 		canvas.drawText(text, x, ly, paint);
+	}
+
+	/**
+	 * Draws text with the bitmap font.
+	 *
+	 * @return false if some char has no glyph, so the caller must use the system font
+	 */
+	private boolean drawBitmapText(String text, int x, int y, int anchor) {
+		if (!BitmapFont.supports(text)) {
+			return false;
+		}
+		boolean bold = font.isBoldStyle();
+		int width = BitmapFont.stringWidth(text, bold);
+		int lx;
+		if ((anchor & Graphics.RIGHT) != 0) {
+			lx = x - width;
+		} else if ((anchor & Graphics.HCENTER) != 0) {
+			lx = x - width / 2;
+		} else {
+			lx = x;
+		}
+
+		float ly;
+		if ((anchor & Graphics.BOTTOM) != 0) {
+			ly = y - font.descent;
+		} else if ((anchor & Graphics.VCENTER) != 0) {
+			ly = y - (font.descent + font.ascent) / 2.0f;
+		} else if ((anchor & Graphics.BASELINE) != 0) {
+			ly = y;
+		} else {
+			ly = y - font.ascent;
+		}
+
+		BitmapFont.draw(canvas, text, lx, Math.round(ly + font.ascent), fillPaint.getColor(),
+				bold, font.isUnderlined());
+		return true;
 	}
 
 	public void drawImage(Image image, int x, int y, int anchor) {
@@ -371,6 +413,9 @@ public class Graphics implements
 	}
 
 	public void drawSubstring(String str, int offset, int len, int x, int y, int anchor) {
+		if (font.bitmap && drawBitmapText(str.substring(offset, offset + len), x, y, anchor)) {
+			return;
+		}
 		Paint paint = font.paint;
 		if ((anchor & Graphics.RIGHT) != 0) {
 			paint.setTextAlign(Paint.Align.RIGHT);
