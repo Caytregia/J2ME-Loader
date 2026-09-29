@@ -1,4 +1,4 @@
-name: Build J2ME-Loader APK
+name: Build J2ME Loader Mod
 
 on:
   workflow_dispatch:
@@ -16,21 +16,23 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install NDK
+      - name: Install Android SDK
         run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platform-tools"
+          sdkmanager "platforms;android-35"
+          sdkmanager "build-tools;35.0.0"
           sdkmanager "ndk;25.2.9519653"
 
       - name: Build APK
         run: |
-          chmod +x ./gradlew
+          chmod +x gradlew
           ./gradlew assembleFdroidDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: J2ME-Loader-APK
+          name: J2ME-Loader-Mod
           path: app/build/outputs/apk/**/*.apk
