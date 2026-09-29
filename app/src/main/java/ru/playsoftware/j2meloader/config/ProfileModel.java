@@ -107,6 +107,9 @@ public class ProfileModel {
 	@SerializedName("FontAntiAlias")
 	public boolean fontAA;
 
+	@SerializedName("FontBitmap")
+	public boolean fontBitmap;
+
 	@SerializedName("TouchInput")
 	public boolean touchInput;
 
