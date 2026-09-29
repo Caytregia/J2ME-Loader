@@ -299,7 +299,8 @@ public class Graphics implements
 	}
 
 	public void drawChars(char[] data, int offset, int length, int x, int y, int anchor) {
-		if (font.bitmap && drawBitmapText(new String(data, offset, length), x, y, anchor)) {
+		if (font.bitmap) {
+			drawBitmapText(new String(data, offset, length), x, y, anchor);
 			return;
 		}
 		Paint paint = font.paint;
@@ -327,7 +328,8 @@ public class Graphics implements
 	}
 
 	public void drawString(String text, int x, int y, int anchor) {
-		if (font.bitmap && drawBitmapText(text, x, y, anchor)) {
+		if (font.bitmap) {
+			drawBitmapText(text, x, y, anchor);
 			return;
 		}
 		Paint paint = font.paint;
@@ -355,16 +357,12 @@ public class Graphics implements
 	}
 
 	/**
-	 * Draws text with the bitmap font.
-	 *
-	 * @return false if some char has no glyph, so the caller must use the system font
+	 * Draws text with the bitmap font. Runs of chars that have no glyph in the atlas
+	 * are drawn with the system font at the same baseline.
 	 */
-	private boolean drawBitmapText(String text, int x, int y, int anchor) {
-		if (!BitmapFont.supports(text)) {
-			return false;
-		}
+	private void drawBitmapText(String text, int x, int y, int anchor) {
 		boolean bold = font.isBoldStyle();
-		int width = BitmapFont.stringWidth(text, bold);
+		int width = font.bitmapStringWidth(text);
 		int lx;
 		if ((anchor & Graphics.RIGHT) != 0) {
 			lx = x - width;
@@ -385,9 +383,30 @@ public class Graphics implements
 			ly = y - font.ascent;
 		}
 
-		BitmapFont.draw(canvas, text, lx, Math.round(ly + font.ascent), fillPaint.getColor(),
-				bold, font.isUnderlined());
-		return true;
+		int color = fillPaint.getColor();
+		Paint paint = font.paint;
+		paint.setTextAlign(Paint.Align.LEFT);
+		paint.setColor(color);
+		int top = Math.round(ly + font.ascent);
+		int cx = lx;
+		int n = text.length();
+		int i = 0;
+		while (i < n) {
+			boolean supported = BitmapFont.supports(text.charAt(i));
+			int j = i + 1;
+			while (j < n && BitmapFont.supports(text.charAt(j)) == supported) {
+				j++;
+			}
+			String run = text.substring(i, j);
+			if (supported) {
+				BitmapFont.draw(canvas, run, cx, top, color, bold, font.isUnderlined());
+				cx += BitmapFont.stringWidth(run, bold);
+			} else {
+				canvas.drawText(run, cx, ly, paint);
+				cx += (int) Math.ceil(paint.measureText(run));
+			}
+			i = j;
+		}
 	}
 
 	public void drawImage(Image image, int x, int y, int anchor) {

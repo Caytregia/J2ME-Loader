@@ -171,29 +171,46 @@ public class Font {
 
 	public int charsWidth(char[] ch, int offset, int length) {
 		if (bitmap) {
-			String str = new String(ch, offset, length);
-			if (BitmapFont.supports(str)) {
-				return BitmapFont.stringWidth(str, isBoldStyle());
-			}
+			return bitmapStringWidth(new String(ch, offset, length));
 		}
 		return (int) Math.ceil(paint.measureText(ch, offset, length));
 	}
 
 	public int stringWidth(String text) {
-		if (bitmap && BitmapFont.supports(text)) {
-			return BitmapFont.stringWidth(text, isBoldStyle());
+		if (bitmap) {
+			return bitmapStringWidth(text);
 		}
 		return (int) Math.ceil(paint.measureText(text));
 	}
 
 	public int substringWidth(String str, int offset, int len) {
 		if (bitmap) {
-			String sub = str.substring(offset, offset + len);
-			if (BitmapFont.supports(sub)) {
-				return BitmapFont.stringWidth(sub, isBoldStyle());
-			}
+			return bitmapStringWidth(str.substring(offset, offset + len));
 		}
 		return (int) paint.measureText(str, offset, offset + len);
+	}
+
+	/**
+	 * Width of text drawn with the bitmap font. Chars that have no glyph in the atlas
+	 * are measured (and drawn, see Graphics) with the system font, run by run.
+	 */
+	int bitmapStringWidth(String s) {
+		boolean bold = isBoldStyle();
+		int total = 0;
+		int n = s.length();
+		int i = 0;
+		while (i < n) {
+			boolean supported = BitmapFont.supports(s.charAt(i));
+			int j = i + 1;
+			while (j < n && BitmapFont.supports(s.charAt(j)) == supported) {
+				j++;
+			}
+			String run = s.substring(i, j);
+			total += supported ? BitmapFont.stringWidth(run, bold)
+					: (int) Math.ceil(paint.measureText(run));
+			i = j;
+		}
+		return total;
 	}
 
 	boolean isBoldStyle() {
