@@ -5,30 +5,29 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup JDK 17
-        uses: actions/setup-java@v4
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
           cache: gradle
 
-      - name: Install Android SDK
+      - name: Find Android SDK
         run: |
-          yes | sdkmanager --licenses
-          sdkmanager "platform-tools"
-          sdkmanager "platforms;android-35"
-          sdkmanager "build-tools;35.0.0"
-          sdkmanager "ndk;25.2.9519653"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+
+          find "$ANDROID_HOME" -name sdkmanager -type f 2>/dev/null || true
 
       - name: Build APK
         run: |
-          chmod +x gradlew
+          chmod +x ./gradlew
           ./gradlew assembleFdroidDebug --stacktrace
 
       - name: Upload APK
@@ -36,3 +35,4 @@ jobs:
         with:
           name: J2ME-Loader-Mod
           path: app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
