@@ -583,6 +583,7 @@ public class ConfigActivity extends BaseActivity implements View.OnClickListener
 		binding.fontSizeLarge.setText(Integer.toString(params.fontSizeLarge));
 		binding.showFontSizesInScaledPixelsToggle.setChecked(params.fontApplyDimensions);
 		binding.enableAntiAliasingToggle.setChecked(params.fontAA);
+		binding.enableBitmapFontToggle.setChecked(params.fontBitmap);
 		boolean showVk = params.showKeyboard;
 		binding.showVirtualKeyboardToggle.setChecked(showVk);
 		binding.virtualKeyboardConfigGroup.setVisibility(showVk ? View.VISIBLE : View.GONE);
@@ -662,6 +663,7 @@ public class ConfigActivity extends BaseActivity implements View.OnClickListener
 			}
 			params.fontApplyDimensions = binding.showFontSizesInScaledPixelsToggle.isChecked();
 			params.fontAA = binding.enableAntiAliasingToggle.isChecked();
+			params.fontBitmap = binding.enableBitmapFontToggle.isChecked();
 			params.showKeyboard = binding.showVirtualKeyboardToggle.isChecked();
 			params.vkFeedback = binding.enableHapticFeedbackToggle.isChecked();
 			params.vkForceOpacity = binding.forceOpacityForOffscreenKeysToggle.isChecked();
