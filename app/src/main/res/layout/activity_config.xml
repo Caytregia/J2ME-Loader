@@ -538,6 +538,16 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@+id/show_font_sizes_in_scaled_pixels_toggle" />
 
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/enable_bitmap_font_toggle"
+                style="@style/SwitchStyle"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/height_config_row"
+                android:text="@string/PREF_FONT_BITMAP"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/enable_anti_aliasing_toggle" />
+
         </androidx.constraintlayout.widget.ConstraintLayout><!-- Font -->
 
         <!-- Input -->
