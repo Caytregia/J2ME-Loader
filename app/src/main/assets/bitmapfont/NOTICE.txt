@@ -1,6 +1,0 @@
-atlas.png contains:
-- the original Latin/Vietnamese glyphs from PhoneME-Turbo 1.2.0 (corebridge-atlas.png)
-- extra Latin punctuation/symbols drawn by hand
-- CJK Unified Ideographs (U+4E00-9FFF), Extension A (U+3400-4DBF), CJK compatibility
-  ideographs, hiragana/katakana, CJK punctuation and full-width forms rendered from
-  GNU Unifont (http://unifoundry.com/unifont/, GPL-2+ with the font embedding exception / OFL-1.1)
