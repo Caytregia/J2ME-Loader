@@ -52,8 +52,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 
+import javax.microedition.lcdui.BitmapFont;
 import javax.microedition.shell.MicroActivity;
 import javax.microedition.util.ContextHolder;
 
@@ -328,6 +330,24 @@ public class ConfigActivity extends BaseActivity implements View.OnClickListener
 		ShaderTuneDialog.newInstance(shader).show(getSupportFragmentManager(), "ShaderTuning");
 	}
 
+	private void initBitmapFontStyles() {
+		List<BitmapFont.Style> styles = BitmapFont.listStyles(this);
+		ArrayAdapter<BitmapFont.Style> adapter =
+				new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, styles);
+		adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+		binding.bitmapFontStyleSelector.setAdapter(adapter);
+		String id = params.fontBitmapStyle == null ? BitmapFont.DEFAULT_STYLE : params.fontBitmapStyle;
+		for (int i = 0; i < styles.size(); i++) {
+			if (styles.get(i).id.equals(id)) {
+				binding.bitmapFontStyleSelector.setSelection(i);
+				break;
+			}
+		}
+		binding.bitmapFontStyleRow.setVisibility(params.fontBitmap ? View.VISIBLE : View.GONE);
+		binding.enableBitmapFontToggle.setOnCheckedChangeListener((button, checked) ->
+				binding.bitmapFontStyleRow.setVisibility(checked ? View.VISIBLE : View.GONE));
+	}
+
 	private void initShaderSpinner() {
 		if (spShaderAdapter != null) {
 			binding.shaderRoot.setVisibility(View.VISIBLE);
@@ -584,6 +604,7 @@ public class ConfigActivity extends BaseActivity implements View.OnClickListener
 		binding.showFontSizesInScaledPixelsToggle.setChecked(params.fontApplyDimensions);
 		binding.enableAntiAliasingToggle.setChecked(params.fontAA);
 		binding.enableBitmapFontToggle.setChecked(params.fontBitmap);
+		initBitmapFontStyles();
 		boolean showVk = params.showKeyboard;
 		binding.showVirtualKeyboardToggle.setChecked(showVk);
 		binding.virtualKeyboardConfigGroup.setVisibility(showVk ? View.VISIBLE : View.GONE);
@@ -664,6 +685,8 @@ public class ConfigActivity extends BaseActivity implements View.OnClickListener
 			params.fontApplyDimensions = binding.showFontSizesInScaledPixelsToggle.isChecked();
 			params.fontAA = binding.enableAntiAliasingToggle.isChecked();
 			params.fontBitmap = binding.enableBitmapFontToggle.isChecked();
+			BitmapFont.Style bitmapStyle = (BitmapFont.Style) binding.bitmapFontStyleSelector.getSelectedItem();
+			params.fontBitmapStyle = bitmapStyle == null ? null : bitmapStyle.id;
 			params.showKeyboard = binding.showVirtualKeyboardToggle.isChecked();
 			params.vkFeedback = binding.enableHapticFeedbackToggle.isChecked();
 			params.vkForceOpacity = binding.forceOpacityForOffscreenKeysToggle.isChecked();

@@ -110,6 +110,9 @@ public class ProfileModel {
 	@SerializedName("FontBitmap")
 	public boolean fontBitmap;
 
+	@SerializedName("FontBitmapStyle")
+	public String fontBitmapStyle;
+
 	@SerializedName("TouchInput")
 	public boolean touchInput;
 
