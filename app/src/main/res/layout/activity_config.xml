@@ -548,6 +548,35 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@+id/enable_anti_aliasing_toggle" />
 
+            <LinearLayout
+                android:id="@+id/bitmap_font_style_row"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/height_config_row"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:visibility="gone"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/enable_bitmap_font_toggle">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/PREF_FONT_BITMAP_STYLE"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:textColor="?attr/textColorSecondary"
+                    android:textSize="15sp" />
+
+                <Spinner
+                    android:id="@+id/bitmap_font_style_selector"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:textColor="?attr/textColorSecondary"
+                    android:textSize="15sp" />
+            </LinearLayout>
+
         </androidx.constraintlayout.widget.ConstraintLayout><!-- Font -->
 
         <!-- Input -->
