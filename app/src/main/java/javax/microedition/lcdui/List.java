@@ -297,9 +297,7 @@ public class List extends Screen implements Choice {
 		menu.clear();
 
 		for (Command cmd : getCommands()) {
-			if (cmd == selectCommand || cmd.getCommandType() == Command.ITEM) {
-				menu.add(hashCode(), cmd.hashCode(), cmd.getPriority(), cmd.getAndroidLabel());
-			}
+			menu.add(hashCode(), cmd.hashCode(), cmd.getPriority(), cmd.getAndroidLabel());
 		}
 	}
 
@@ -332,4 +330,4 @@ public class List extends Screen implements Choice {
 		setSelectedIndex(position, newValue);
 		return getCommands().length == 0;
 	}
-}
+		}
