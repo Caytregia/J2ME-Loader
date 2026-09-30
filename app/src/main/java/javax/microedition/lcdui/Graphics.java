@@ -432,7 +432,8 @@ public class Graphics implements
 	}
 
 	public void drawSubstring(String str, int offset, int len, int x, int y, int anchor) {
-		if (font.bitmap && drawBitmapText(str.substring(offset, offset + len), x, y, anchor)) {
+		if (font.bitmap) {
+			drawBitmapText(str.substring(offset, offset + len), x, y, anchor);
 			return;
 		}
 		Paint paint = font.paint;
