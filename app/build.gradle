@@ -7,10 +7,10 @@ def midletArchivesBaseName
 android {
     compileSdk COMPILE_SDK
     ndkVersion NDK_VERSION
-    namespace 'ru.playsoftware.j2meloaderbit'
+    namespace 'ru.playsoftware.j2meloader'
 
     defaultConfig {
-        applicationId "ru.playsoftware.j2meloaderbit"
+        applicationId "ru.playsoftware.j2meloader"
         minSdk MIN_SDK
         targetSdk TARGET_SDK
         versionCode 101
