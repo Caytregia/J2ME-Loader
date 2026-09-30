@@ -104,9 +104,9 @@ public class Font {
 		Paint.FontMetrics fm = new Paint.FontMetrics();
 		if (bitmap) {
 			// metrics of the bitmap glyph row; the system paint is only a fallback
-			this.height = BitmapFont.CELL_H;
-			this.ascent = -BitmapFont.ASCENT;
-			this.descent = BitmapFont.DESCENT;
+			this.height = BitmapFont.getCellHeight();
+			this.ascent = -BitmapFont.getAscent();
+			this.descent = BitmapFont.getDescent();
 			return;
 		}
 		this.height = (int) Math.ceil(paint.getFontMetrics(fm));
@@ -123,7 +123,7 @@ public class Font {
 		Font font = fonts[index];
 
 		if (font == null) {
-			float height = bitmapEnabled ? BitmapFont.CELL_H : sizes[size / 8];
+			float height = bitmapEnabled ? BitmapFont.getCellHeight() : sizes[size / 8];
 			font = new Font(face, style, size, height);
 			fonts[index] = font;
 		}
@@ -157,7 +157,7 @@ public class Font {
 
 	public int getBaselinePosition() {
 		if (bitmap) {
-			return BitmapFont.ASCENT;
+			return BitmapFont.getAscent();
 		}
 		return (int) Math.ceil(-paint.ascent());
 	}
@@ -231,7 +231,7 @@ public class Font {
 
 	public static void applySettings(ProfileModel params) {
 		antiAlias = params.fontAA;
-		bitmapEnabled = params.fontBitmap && BitmapFont.load();
+		bitmapEnabled = params.fontBitmap && BitmapFont.load(params.fontBitmapStyle);
 
 		float small = params.fontSizeSmall;
 		float medium = params.fontSizeMedium;
