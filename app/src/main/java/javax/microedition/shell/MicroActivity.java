@@ -84,7 +84,9 @@ import ru.playsoftware.j2meloader.BuildConfig;
 import ru.playsoftware.j2meloader.R;
 import ru.playsoftware.j2meloader.config.Config;
 import ru.playsoftware.j2meloader.databinding.ActivityMicroBinding;
+import ru.playsoftware.j2meloader.util.ConsoleOutput;
 import ru.playsoftware.j2meloader.util.Constants;
+import ru.playsoftware.j2meloader.util.LogConsoleDialogFragment;
 import ru.playsoftware.j2meloader.util.LogUtils;
 
 public class MicroActivity extends AppCompatActivity {
@@ -459,6 +461,8 @@ public class MicroActivity extends AppCompatActivity {
 			showExitConfirmation();
 		} else if (id == R.id.action_save_log) {
 			saveLog();
+		} else if (id == R.id.action_view_log) {
+			showLogConsole();
 		} else if (id == R.id.action_lock_orientation) {
 			if (item.isChecked()) {
 				VirtualKeyboard vk = ContextHolder.getVk();
@@ -521,6 +525,10 @@ public class MicroActivity extends AppCompatActivity {
 				Toast.makeText(MicroActivity.this, R.string.error, Toast.LENGTH_SHORT).show();
 			}
 		});
+	}
+
+	private void showLogConsole() {
+		new LogConsoleDialogFragment().show(getSupportFragmentManager(), "log_console");
 	}
 
 	private void saveLog() {
@@ -702,6 +710,7 @@ public class MicroActivity extends AppCompatActivity {
 
 	@Override
 	protected void onDestroy() {
+		ConsoleOutput.clear();
 		binding = null;
 		super.onDestroy();
 	}

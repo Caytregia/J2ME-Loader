@@ -32,6 +32,7 @@ import javax.microedition.util.ContextHolder;
 import androidx.annotation.NonNull;
 
 import ru.playsoftware.j2meloader.config.Config;
+import ru.playsoftware.j2meloader.util.ConsoleOutput;
 
 public class MidletThread extends HandlerThread implements Handler.Callback {
 	private static final String TAG = MidletThread.class.getName();
@@ -58,6 +59,7 @@ public class MidletThread extends HandlerThread implements Handler.Callback {
 		super("MidletMain");
 		this.microLoader = microLoader;
 		this.mainClass = mainClass;
+		ConsoleOutput.install();
 		start();
 		handler = new Handler(getLooper(), this);
 		handler.obtainMessage(INIT).sendToTarget();
