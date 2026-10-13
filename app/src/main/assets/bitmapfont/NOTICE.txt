@@ -13,3 +13,10 @@ han12 (12 px hanzi):
 - Ideographs and punctuation rendered at 12 px from WenQuanYi Zen Hei
   (GPL-2 with the font embedding exception), a few rare characters from Noto Sans CJK (OFL-1.1),
   symbols/arrows and any remaining characters downscaled from GNU Unifont.
+
+game10 (Latin/Vietnamese 10 px, hanzi 11 px):
+- Latin/Vietnamese glyphs decoded from the game's own font.bin (provided by the user).
+- Extra Latin punctuation/symbols (= _ ` (c) (R) TM quotes, dashes, etc.) taken from the han12 style.
+- Ideographs, kana, CJK punctuation and full-width forms rendered at 11 px from WenQuanYi Zen Hei
+  (GPL-2 with the font embedding exception); a few rare characters from Noto Sans CJK (OFL-1.1);
+  symbols/arrows downscaled from GNU Unifont.
