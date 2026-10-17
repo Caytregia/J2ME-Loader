@@ -20,4 +20,35 @@
         android:gravity="center"
         android:text="@string/loading_info" />
 
+    <LinearLayout
+        android:id="@+id/split_options"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <CheckBox
+            android:id="@+id/split_dex_check"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/split_dex" />
+
+        <TextView
+            android:id="@+id/split_dex_hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/split_dex_hint"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
+        <EditText
+            android:id="@+id/split_dex_count"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/split_dex_count_hint"
+            android:inputType="number"
+            android:maxLength="6"
+            android:visibility="gone" />
+    </LinearLayout>
+
 </LinearLayout>
