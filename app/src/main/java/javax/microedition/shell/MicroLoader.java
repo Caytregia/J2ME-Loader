@@ -46,6 +46,7 @@ import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -71,6 +72,7 @@ import ru.playsoftware.j2meloader.config.ProfileModel;
 import ru.playsoftware.j2meloader.config.ProfilesManager;
 import ru.playsoftware.j2meloader.config.ShaderInfo;
 import ru.playsoftware.j2meloader.util.Constants;
+import ru.playsoftware.j2meloader.util.DexSplitter;
 import ru.playsoftware.j2meloader.util.FileUtils;
 import ru.playsoftware.j2meloader.util.IOUtils;
 import ru.woesss.j2me.jar.Descriptor;
@@ -175,7 +177,10 @@ public class MicroLoader {
 	MIDlet loadMIDlet(String mainClass) throws ClassNotFoundException, InstantiationException,
 			IllegalAccessException, NoSuchMethodException, InvocationTargetException, IOException {
 		if (BuildConfig.FULL_EMULATOR) {
-			File dexSource = new File(appDir, Config.MIDLET_DEX_FILE);
+			List<File> dexFiles = DexSplitter.listDexFiles(appDir);
+			if (dexFiles.isEmpty()) {
+				throw new IOException("Dex file not found in: " + appDir);
+			}
 			File codeCacheDir = ContextCompat.getCodeCacheDir(context);
 			File dexOptDir = new File(codeCacheDir, Config.DEX_OPT_CACHE_DIR);
 			if (dexOptDir.exists()) {
@@ -183,17 +188,25 @@ public class MicroLoader {
 			} else if (!dexOptDir.mkdir()) {
 				throw new IOException("Can't create directory: [" + dexOptDir + ']');
 			}
-			if (SDK_INT >= UPSIDE_DOWN_CAKE) {
-				File dexCache = new File(dexOptDir, appDirName);
-				FilesKt.copyTo(dexSource, dexCache, true, ConstantsKt.DEFAULT_BUFFER_SIZE);
-				if (!dexCache.setReadOnly()) {
-					throw new IOException("Can't set readOnly flag for dex cache file");
+			StringBuilder dexPaths = new StringBuilder();
+			for (int i = 0; i < dexFiles.size(); i++) {
+				File dexSource = dexFiles.get(i);
+				if (SDK_INT >= UPSIDE_DOWN_CAKE) {
+					File dexCache = new File(dexOptDir, i == 0 ? appDirName : appDirName + '_' + (i + 1));
+					FilesKt.copyTo(dexSource, dexCache, true, ConstantsKt.DEFAULT_BUFFER_SIZE);
+					if (!dexCache.setReadOnly()) {
+						throw new IOException("Can't set readOnly flag for dex cache file");
+					}
+					dexSource = dexCache;
 				}
-				dexSource = dexCache;
+				if (i > 0) {
+					dexPaths.append(File.pathSeparatorChar);
+				}
+				dexPaths.append(dexSource.getAbsolutePath());
 			}
-			ClassLoader loader = new AppClassLoader(dexSource.getAbsolutePath(),
+			ClassLoader loader = new AppClassLoader(dexPaths.toString(),
 					dexOptDir.getAbsolutePath(), context.getClassLoader(), appDir);
-			Log.i(TAG, "loadMIDletList main: " + mainClass + " from dex:" + dexSource.getPath());
+			Log.i(TAG, "loadMIDletList main: " + mainClass + " from dex:" + dexPaths);
 			//noinspection unchecked
 			Class<MIDlet> clazz = (Class<MIDlet>) loader.loadClass(mainClass);
 			Constructor<MIDlet> init = clazz.getDeclaredConstructor();
