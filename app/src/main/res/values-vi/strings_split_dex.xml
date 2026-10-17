@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="split_dex">Chia thành nhiều file dex</string>
+    <string name="split_dex_hint">Dùng khi chuyển đổi bị lỗi hết bộ nhớ (game lớn, jar ghép nhiều bản). Mỗi file dex chứa tối đa số class bạn nhập.</string>
+    <string name="split_dex_count_hint">Số class mỗi file dex</string>
+    <string name="split_dex_invalid">Nhập số class lớn hơn 0</string>
+</resources>
