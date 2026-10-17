@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="split_dex">Split into several dex files</string>
+    <string name="split_dex_hint">Use it when converting fails with an out-of-memory error (big games, jars that contain several copies of a game). Every dex file will contain at most the given number of classes.</string>
+    <string name="split_dex_count_hint">Classes per dex file</string>
+    <string name="split_dex_invalid">Enter a number of classes greater than 0</string>
+</resources>
