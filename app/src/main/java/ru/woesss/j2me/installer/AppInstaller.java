@@ -48,6 +48,7 @@ import ru.playsoftware.j2meloader.applist.AppItem;
 import ru.playsoftware.j2meloader.appsdb.AppRepository;
 import ru.playsoftware.j2meloader.config.Config;
 import ru.playsoftware.j2meloader.util.ConverterException;
+import ru.playsoftware.j2meloader.util.DexSplitter;
 import ru.playsoftware.j2meloader.util.FileUtils;
 import ru.playsoftware.j2meloader.util.ZipUtils;
 import ru.woesss.j2me.jar.Descriptor;
@@ -76,6 +77,8 @@ public class AppInstaller {
 	private File tmpDir;
 	private AppItem currentApp;
 	private File srcFile;
+	/** Max number of classes in one dex file, 0 - convert to a single dex file. */
+	private int splitClasses;
 
 	AppInstaller(String path, Uri uri, Application context, AppRepository appRepository) {
 		id = -1;
@@ -91,6 +94,10 @@ public class AppInstaller {
 		this.context = context;
 		this.appRepository = appRepository;
 		this.cacheDir = new File(context.getCacheDir(), "installer");
+	}
+
+	void setSplitClasses(int classesPerDex) {
+		splitClasses = classesPerDex;
 	}
 
 	Descriptor getNewDescriptor() {
@@ -289,9 +296,13 @@ public class AppInstaller {
 			}
 		}
 		try {
-			Main.main(new String[]{"--no-optimize", "--core-library",
-					"--output=" + tmpDir + Config.MIDLET_DEX_FILE,
-					srcJar.getAbsolutePath()});
+			if (splitClasses > 0) {
+				DexSplitter.convert(srcJar, tmpDir, splitClasses, cacheDir);
+			} else {
+				Main.main(new String[]{"--no-optimize", "--core-library",
+						"--output=" + tmpDir + Config.MIDLET_DEX_FILE,
+						srcJar.getAbsolutePath()});
+			}
 		} catch (Throwable e) {
 			throw new ConverterException("Dexing error", e);
 		}

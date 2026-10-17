@@ -20,6 +20,7 @@ import android.annotation.SuppressLint;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
@@ -35,6 +36,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.DialogFragment;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.preference.PreferenceManager;
 
 import io.reactivex.Single;
 import io.reactivex.android.schedulers.AndroidSchedulers;
@@ -53,6 +55,9 @@ import ru.woesss.j2me.jar.Descriptor;
 public class InstallerDialog extends DialogFragment {
 	private static final String ARG_URI = "InstallerDialog.uri";
 	private static final String ARG_ID = "InstallerDialog.id";
+	private static final String PREF_SPLIT_DEX = "installer_split_dex";
+	private static final String PREF_SPLIT_DEX_COUNT = "installer_split_dex_count";
+	private static final int DEFAULT_SPLIT_DEX_COUNT = 500;
 	private final CompositeDisposable compositeDisposable = new CompositeDisposable();
 
 	private AppRepository appRepository;
@@ -215,7 +220,61 @@ public class InstallerDialog extends DialogFragment {
 		btnClose.setVisibility(View.VISIBLE);
 	}
 
+	private void showSplitOptions() {
+		SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
+		boolean split = prefs.getBoolean(PREF_SPLIT_DEX, false);
+		binding.splitDexCheck.setOnCheckedChangeListener(null);
+		binding.splitDexCheck.setChecked(split);
+		binding.splitDexCount.setText(String.valueOf(prefs.getInt(PREF_SPLIT_DEX_COUNT, DEFAULT_SPLIT_DEX_COUNT)));
+		setSplitCountVisible(split);
+		binding.splitDexCheck.setOnCheckedChangeListener((button, checked) -> setSplitCountVisible(checked));
+		binding.splitOptions.setVisibility(View.VISIBLE);
+	}
+
+	private void setSplitCountVisible(boolean visible) {
+		int v = visible ? View.VISIBLE : View.GONE;
+		binding.splitDexHint.setVisibility(v);
+		binding.splitDexCount.setVisibility(v);
+	}
+
+	/**
+	 * Reads the dex options, saves them for the next installation and passes them to the installer.
+	 *
+	 * @return false if the entered value is not valid
+	 */
+	private boolean applySplitOptions() {
+		int classesPerDex = 0;
+		if (binding.splitOptions.getVisibility() == View.VISIBLE) {
+			boolean split = binding.splitDexCheck.isChecked();
+			int count = DEFAULT_SPLIT_DEX_COUNT;
+			try {
+				count = Integer.parseInt(binding.splitDexCount.getText().toString().trim());
+			} catch (NumberFormatException e) {
+				if (split) {
+					count = 0;
+				}
+			}
+			if (split && count <= 0) {
+				Toast.makeText(requireActivity(), R.string.split_dex_invalid, Toast.LENGTH_SHORT).show();
+				return false;
+			}
+			SharedPreferences.Editor editor = PreferenceManager.getDefaultSharedPreferences(requireContext()).edit();
+			editor.putBoolean(PREF_SPLIT_DEX, split);
+			if (count > 0) {
+				editor.putInt(PREF_SPLIT_DEX_COUNT, count);
+			}
+			editor.apply();
+			classesPerDex = split ? count : 0;
+		}
+		installer.setSplitClasses(classesPerDex);
+		binding.splitOptions.setVisibility(View.GONE);
+		return true;
+	}
+
 	private void convert() {
+		if (!applySplitOptions()) {
+			return;
+		}
 		Descriptor nd = installer.getNewDescriptor();
 		SpannableStringBuilder info = nd.getInfo(requireActivity());
 		mDialog.setMessage(info);
@@ -271,10 +330,6 @@ public class InstallerDialog extends DialogFragment {
 		SpannableStringBuilder message;
 		switch (status) {
 			case AppInstaller.STATUS_NEW:
-				if (installer.getJar() != null) {
-					convert();
-					return;
-				}
 				message = nd.getInfo(requireActivity());
 				break;
 			case AppInstaller.STATUS_OLDEST:
@@ -322,6 +377,7 @@ public class InstallerDialog extends DialogFragment {
 		mDialog.setMessage(message);
 		btnOk.setOnClickListener(v -> convert());
 		hideProgress();
+		showSplitOptions();
 		showButtons();
 	}
 
