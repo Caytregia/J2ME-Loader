@@ -84,12 +84,12 @@ import ru.playsoftware.j2meloader.BuildConfig;
 import ru.playsoftware.j2meloader.R;
 import ru.playsoftware.j2meloader.config.Config;
 import ru.playsoftware.j2meloader.databinding.ActivityMicroBinding;
-import ru.playsoftware.j2meloader.util.ConsoleOutput;
 import ru.playsoftware.j2meloader.util.Constants;
-import ru.playsoftware.j2meloader.util.LogConsoleDialogFragment;
 import ru.playsoftware.j2meloader.util.LogUtils;
 
 public class MicroActivity extends AppCompatActivity {
+	private static final int[] FPS_PRESETS = {30, 60, 90, 120, 150};
+
 	private static final int ORIENTATION_DEFAULT = 0;
 	private static final int ORIENTATION_AUTO = 1;
 	private static final int ORIENTATION_PORTRAIT = 2;
@@ -461,8 +461,6 @@ public class MicroActivity extends AppCompatActivity {
 			showExitConfirmation();
 		} else if (id == R.id.action_save_log) {
 			saveLog();
-		} else if (id == R.id.action_view_log) {
-			showLogConsole();
 		} else if (id == R.id.action_lock_orientation) {
 			if (item.isChecked()) {
 				VirtualKeyboard vk = ContextHolder.getVk();
@@ -525,10 +523,6 @@ public class MicroActivity extends AppCompatActivity {
 				Toast.makeText(MicroActivity.this, R.string.error, Toast.LENGTH_SHORT).show();
 			}
 		});
-	}
-
-	private void showLogConsole() {
-		new LogConsoleDialogFragment().show(getSupportFragmentManager(), "log_console");
 	}
 
 	private void saveLog() {
@@ -613,6 +607,7 @@ public class MicroActivity extends AppCompatActivity {
 		editText.setSingleLine(true);
 		float density = getResources().getDisplayMetrics().density;
 		LinearLayout linearLayout = new LinearLayout(this);
+		linearLayout.setOrientation(LinearLayout.VERTICAL);
 		LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
 				ViewGroup.LayoutParams.WRAP_CONTENT);
 		int margin = (int) (density * 20);
@@ -621,7 +616,32 @@ public class MicroActivity extends AppCompatActivity {
 		int paddingVertical = (int) (density * 16);
 		int paddingHorizontal = (int) (density * 8);
 		editText.setPadding(paddingHorizontal, paddingVertical, paddingHorizontal, paddingVertical);
-		new AlertDialog.Builder(this)
+
+		// ready-made values in one row under the input field
+		final AlertDialog[] dialogHolder = new AlertDialog[1];
+		LinearLayout presetRow = new LinearLayout(this);
+		presetRow.setOrientation(LinearLayout.HORIZONTAL);
+		LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+				ViewGroup.LayoutParams.WRAP_CONTENT);
+		rowParams.setMargins(margin - (int) (density * 4), (int) (density * 4), margin - (int) (density * 4), 0);
+		for (int preset : FPS_PRESETS) {
+			android.widget.Button button =
+					new android.widget.Button(this, null, androidx.appcompat.R.attr.buttonBarButtonStyle);
+			button.setText(String.valueOf(preset));
+			button.setMinWidth(0);
+			button.setMinimumWidth(0);
+			button.setPadding((int) (density * 4), 0, (int) (density * 4), 0);
+			button.setOnClickListener(v -> {
+				microLoader.setLimitFps(preset);
+				if (dialogHolder[0] != null) {
+					dialogHolder[0].dismiss();
+				}
+			});
+			presetRow.addView(button, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+		}
+		linearLayout.addView(presetRow, rowParams);
+
+		AlertDialog dialog = new AlertDialog.Builder(this)
 				.setTitle(R.string.PREF_LIMIT_FPS)
 				.setView(linearLayout)
 				.setPositiveButton(android.R.string.ok, (d, w) -> {
@@ -635,7 +655,9 @@ public class MicroActivity extends AppCompatActivity {
 				})
 				.setNegativeButton(android.R.string.cancel, null)
 				.setNeutralButton(R.string.reset, ((d, which) -> microLoader.setLimitFps(-1)))
-				.show();
+				.create();
+		dialogHolder[0] = dialog;
+		dialog.show();
 	}
 
 	@Override
@@ -710,7 +732,6 @@ public class MicroActivity extends AppCompatActivity {
 
 	@Override
 	protected void onDestroy() {
-		ConsoleOutput.clear();
 		binding = null;
 		super.onDestroy();
 	}
