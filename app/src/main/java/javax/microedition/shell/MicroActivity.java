@@ -48,6 +48,7 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView.AdapterContextMenuInfo;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -84,7 +85,9 @@ import ru.playsoftware.j2meloader.BuildConfig;
 import ru.playsoftware.j2meloader.R;
 import ru.playsoftware.j2meloader.config.Config;
 import ru.playsoftware.j2meloader.databinding.ActivityMicroBinding;
+import ru.playsoftware.j2meloader.util.ConsoleOutput;
 import ru.playsoftware.j2meloader.util.Constants;
+import ru.playsoftware.j2meloader.util.LogConsoleDialogFragment;
 import ru.playsoftware.j2meloader.util.LogUtils;
 
 public class MicroActivity extends AppCompatActivity {
@@ -447,6 +450,14 @@ public class MicroActivity extends AppCompatActivity {
 			if (vk != null) {
 				boolean visible = vk.getLayoutEditMode() != VirtualKeyboard.LAYOUT_EOF;
 				menu.findItem(R.id.action_layout_edit_finish).setVisible(visible);
+				boolean keysMode = vk.getLayoutEditMode() == VirtualKeyboard.LAYOUT_KEYS;
+				MenuItem showGrid = menu.findItem(R.id.action_grid);
+				showGrid.setVisible(keysMode);
+				showGrid.setChecked(vk.isShowGrid());
+				MenuItem snapToGrid = menu.findItem(R.id.action_snap_to_grid);
+				snapToGrid.setVisible(keysMode);
+				snapToGrid.setChecked(vk.isSnapToGrid());
+				menu.findItem(R.id.action_grid_size).setVisible(keysMode);
 			}
 		} else {
 			menu.setGroupVisible(R.id.action_group_canvas, false);
@@ -461,6 +472,8 @@ public class MicroActivity extends AppCompatActivity {
 			showExitConfirmation();
 		} else if (id == R.id.action_save_log) {
 			saveLog();
+		} else if (id == R.id.action_view_log) {
+			showLogConsole();
 		} else if (id == R.id.action_lock_orientation) {
 			if (item.isChecked()) {
 				VirtualKeyboard vk = ContextHolder.getVk();
@@ -480,12 +493,13 @@ public class MicroActivity extends AppCompatActivity {
 			showLimitFpsDialog();
 		} else if (ContextHolder.getVk() != null) {
 			// Handled only when virtual keyboard is enabled
-			handleVkOptions(id);
+			handleVkOptions(item);
 		}
 		return true;
 	}
 
-	private void handleVkOptions(int id) {
+	private void handleVkOptions(MenuItem item) {
+		int id = item.getItemId();
 		VirtualKeyboard vk = ContextHolder.getVk();
 		if (id == R.id.action_layout_edit_mode) {
 			vk.setLayoutEditMode(VirtualKeyboard.LAYOUT_KEYS);
@@ -501,7 +515,48 @@ public class MicroActivity extends AppCompatActivity {
 			showSetLayoutDialog();
 		} else if (id == R.id.action_hide_buttons) {
 			showHideButtonDialog();
+		} else if (id == R.id.action_grid) {
+			boolean show = !vk.isShowGrid();
+			vk.setShowGrid(show);
+			item.setChecked(show);
+		} else if (id == R.id.action_snap_to_grid) {
+			boolean snap = !vk.isSnapToGrid();
+			vk.setSnapToGrid(snap);
+			item.setChecked(snap);
+		} else if (id == R.id.action_grid_size) {
+			showGridSizeDialog(vk);
 		}
+	}
+
+	private void showGridSizeDialog(VirtualKeyboard vk) {
+		float density = getResources().getDisplayMetrics().density;
+		int padding = (int) (24 * density);
+		LinearLayout layout = new LinearLayout(this);
+		layout.setOrientation(LinearLayout.VERTICAL);
+		layout.setPadding(padding, (int) (8 * density), padding, (int) (8 * density));
+		TextView info = new TextView(this);
+		info.setText(getString(R.string.grid_size_px, (int) vk.getGridSize()));
+		layout.addView(info);
+		EditText input = new EditText(this);
+		input.setInputType(InputType.TYPE_CLASS_NUMBER);
+		input.setText(String.valueOf((int) vk.getGridSize()));
+		input.setSelectAllOnFocus(true);
+		layout.addView(input);
+		new AlertDialog.Builder(this)
+				.setTitle(R.string.grid_size)
+				.setView(layout)
+				.setPositiveButton(android.R.string.ok, (dialog, which) -> {
+					try {
+						vk.setGridSize(Float.parseFloat(input.getText().toString().trim()));
+					} catch (NumberFormatException ignored) {
+					}
+				})
+				.setNegativeButton(android.R.string.cancel, null)
+				.show();
+	}
+
+	private void showLogConsole() {
+		new LogConsoleDialogFragment().show(getSupportFragmentManager(), "log_console");
 	}
 
 	@SuppressLint("CheckResult")
@@ -732,6 +787,7 @@ public class MicroActivity extends AppCompatActivity {
 
 	@Override
 	protected void onDestroy() {
+		ConsoleOutput.clear();
 		binding = null;
 		super.onDestroy();
 	}
