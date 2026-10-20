@@ -188,6 +188,12 @@ public class VirtualKeyboard implements Overlay, Runnable {
 	private float keySize =
 			Math.min(ContextHolder.getDisplayWidth(), ContextHolder.getDisplayHeight()) / 6.0f;
 	private float snapRadius;
+
+	// layout editor grid
+	private static final float MIN_GRID_SIZE = 4;
+	private boolean showGrid;
+	private boolean snapToGrid;
+	private float gridSize = 24;
 	private int layoutVariant;
 
 	public VirtualKeyboard(ProfileModel settings) {
@@ -907,11 +913,66 @@ public class VirtualKeyboard implements Overlay, Runnable {
 	@Override
 	public void paint(CanvasWrapper g) {
 		if (visible) {
+			if (layoutEditMode == LAYOUT_KEYS && showGrid && gridSize > 1 && screen != null) {
+				paintGrid(g);
+			}
 			for (VirtualKey key : keypad) {
 				if (key.visible) {
 					key.paint(g);
 				}
 			}
+		}
+	}
+
+	private void paintGrid(CanvasWrapper g) {
+		float left = screen.left;
+		float top = screen.top;
+		float right = screen.right;
+		float bottom = screen.bottom;
+		g.setStrokeWidth(1);
+		// a dark line shifted by 1px and a light line over it keep the grid visible on any background
+		for (int pass = 0; pass < 2; pass++) {
+			g.setDrawColor(pass == 0 ? 0x44000000 : 0x66FFFFFF);
+			float shift = pass == 0 ? 1 : 0;
+			for (float x = left; x <= right; x += gridSize) {
+				g.drawLine(x + shift, top, x + shift, bottom);
+			}
+			for (float y = top; y <= bottom; y += gridSize) {
+				g.drawLine(left, y + shift, right, y + shift);
+			}
+		}
+		g.setStrokeWidth(0);
+	}
+
+	public boolean isShowGrid() {
+		return showGrid;
+	}
+
+	public void setShowGrid(boolean showGrid) {
+		this.showGrid = showGrid;
+		invalidateOverlay();
+	}
+
+	public boolean isSnapToGrid() {
+		return snapToGrid;
+	}
+
+	public void setSnapToGrid(boolean snapToGrid) {
+		this.snapToGrid = snapToGrid;
+	}
+
+	public float getGridSize() {
+		return gridSize;
+	}
+
+	public void setGridSize(float gridSize) {
+		this.gridSize = Math.max(MIN_GRID_SIZE, gridSize);
+		invalidateOverlay();
+	}
+
+	private void invalidateOverlay() {
+		if (overlayView != null) {
+			overlayView.postInvalidate();
 		}
 	}
 
@@ -988,14 +1049,28 @@ public class VirtualKeyboard implements Overlay, Runnable {
 				if (editedIndex >= 0) {
 					VirtualKey key = keypad[editedIndex];
 					RectF rect = key.rect;
-					rect.offsetTo(x - offsetX, y - offsetY);
+					boolean toGrid = snapToGrid && gridSize > 1;
+					if (toGrid) {
+						// align the corner of the key to the grid, but keep the key inside the screen
+						float nx = screen.left + Math.round((x - offsetX - screen.left) / gridSize) * gridSize;
+						float ny = screen.top + Math.round((y - offsetY - screen.top) / gridSize) * gridSize;
+						nx = Math.max(screen.left, Math.min(screen.right - rect.width(), nx));
+						ny = Math.max(screen.top, Math.min(screen.bottom - rect.height(), ny));
+						rect.offsetTo(nx, ny);
+					} else {
+						rect.offsetTo(x - offsetX, y - offsetY);
+					}
 					key.snapMode = RectSnap.NO_SNAP;
-					for (int i = 0; i < keypad.length; i++) {
+					for (int i = 0; i < keypad.length && !toGrid; i++) {
 						if (i != editedIndex && findSnap(editedIndex, i)) {
 							break;
 						}
 					}
-					if (key.snapMode == RectSnap.NO_SNAP) {
+					if (toGrid) {
+						// the position is exact: relate the key to the screen and keep the whole offset
+						key.snapMode = RectSnap.getSnap(rect, screen, key.snapOffset);
+						key.snapOrigin = SCREEN;
+					} else if (key.snapMode == RectSnap.NO_SNAP) {
 						key.snapMode = RectSnap.getSnap(rect, screen, key.snapOffset);
 						key.snapOrigin = SCREEN;
 						if (Math.abs(key.snapOffset.x) <= snapRadius) {
