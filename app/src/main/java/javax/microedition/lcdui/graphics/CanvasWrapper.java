@@ -86,6 +86,14 @@ public class CanvasWrapper {
 		canvas.drawRect(rect, drawPaint);
 	}
 
+	public void drawLine(float startX, float startY, float stopX, float stopY) {
+		canvas.drawLine(startX, startY, stopX, stopY, drawPaint);
+	}
+
+	public void setStrokeWidth(float width) {
+		drawPaint.setStrokeWidth(width);
+	}
+
 	public void setDrawColor(int color) {
 		drawPaint.setColor(color);
 	}
