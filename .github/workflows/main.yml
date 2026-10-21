@@ -18,21 +18,49 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Find Android SDK
+      # The release keystore is stored in GitHub Secrets (see keystore-info.txt).
+      # Without the secrets only the debug APK is built.
+      - name: Prepare release signing
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > release.jks
+            {
+              echo "storeFile=release.jks"
+              echo "storePassword=$KEYSTORE_PASSWORD"
+              echo "keyAlias=$KEY_ALIAS"
+              echo "keyPassword=$KEYSTORE_PASSWORD"
+            } > keystore.properties
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Secrets KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS are not set: building the debug APK only."
+          fi
 
-          find "$ANDROID_HOME" -name sdkmanager -type f 2>/dev/null || true
-
-      - name: Build APK
+      - name: Build debug APK
         run: |
           chmod +x ./gradlew
           ./gradlew assembleFdroidDebug --stacktrace
 
-      - name: Upload APK
+      - name: Build release APK
+        if: steps.signing.outputs.available == 'true'
+        run: ./gradlew assembleFdroidRelease --stacktrace
+
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: J2ME-Loader-Mod
-          path: app/build/outputs/apk/**/*.apk
+          name: J2ME-Loader-Mod-debug
+          path: app/build/outputs/apk/fdroid/debug/*.apk
+          if-no-files-found: error
+
+      - name: Upload release APK
+        if: steps.signing.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: J2ME-Loader-Mod-release
+          path: app/build/outputs/apk/fdroid/release/*.apk
           if-no-files-found: error
